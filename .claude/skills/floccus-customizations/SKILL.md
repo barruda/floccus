@@ -39,6 +39,10 @@ agents get wrong.
   SQLite file.
 - Database schema changes are a new entry appended to `MIGRATIONS` in
   `custom/panel/src/offscreen/db.worker.ts`; never edit an existing migration (users already ran it).
+- Tags live in `tags.json` on the `panel` branch of the user's bookmarks DATA repository
+  (`barruda/floccus-personal`), never on its `main` (floccus force-pushes `main`) and never in
+  the code fork. Read "Tags" in `custom/README.md` before touching `custom/panel/src/tags/`. Never
+  write to the real repository from tests; the smoke test has a fake GitHub API.
 - After committing, back up with `git push --force-with-lease fork custom` (only when the user
   asked to push).
 

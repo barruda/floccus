@@ -306,3 +306,127 @@ section + section { margin-top: 20px; }
   box-shadow: var(--shadow-hover);
   font-size: 12px;
 }
+
+/* Tags */
+
+.spacer { flex: 1; }
+.muted { color: var(--muted); }
+.small { font-size: 11.5px; }
+.icon-button.on { background: var(--accent-soft); color: var(--accent); }
+
+.chip {
+  --tag-l: 40%;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: hsl(var(--tag-hue) 55% var(--tag-l));
+  background: hsl(var(--tag-hue) 70% 94%);
+}
+.chip .hash { opacity: 0.55; }
+.chip .chip-count { margin-left: 5px; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.chip.active { color: #fff; background: hsl(var(--tag-hue) 55% 45%); }
+@media (prefers-color-scheme: dark) {
+  .chip { --tag-l: 78%; background: hsl(var(--tag-hue) 30% 22%); }
+  .chip.active { color: #fff; background: hsl(var(--tag-hue) 45% 40%); }
+}
+
+.tag-button { display: inline-flex; border-radius: 999px; }
+.tag-button:hover .chip { filter: brightness(0.96); }
+
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.item.list .tags { margin-top: 3px; }
+
+.tag-strip {
+  display: flex;
+  gap: 5px;
+  margin: 8px -12px -2px;
+  padding: 0 12px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tag-strip::-webkit-scrollbar { display: none; }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 72px 12px 12px;
+  background: rgb(0 0 0 / 0.28);
+}
+.dialog {
+  width: 100%;
+  max-width: 420px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+}
+.dialog-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--muted); }
+.dialog-title { flex: 1; min-width: 0; color: var(--fg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.tag-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  cursor: text;
+}
+.tag-input input { flex: 1; min-width: 90px; border: 0; outline: 0; background: none; color: var(--fg); font: inherit; }
+.chip-remove { display: inline-grid; place-items: center; margin: 0 -3px 0 3px; opacity: 0.6; }
+.chip-remove:hover { opacity: 1; }
+
+.suggestions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+.suggestions button { border-radius: 999px; outline-offset: 1px; }
+.suggestions button.on { outline: 2px solid var(--accent); }
+.hint { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
+
+.manager .folder-head { justify-content: flex-start; }
+.sync-card {
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.sync-line { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.sync-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sync-text a { color: var(--fg); font-weight: 500; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-text a:hover { text-decoration: underline; }
+.error { color: #dc2626; font-size: 12px; }
+.sync-card p { margin: 8px 0 0; line-height: 1.45; }
+.sync-card code { font-size: 11px; padding: 0 3px; border-radius: 4px; background: var(--surface-2); }
+.manual-links { display: flex; gap: 14px; margin-top: 6px; }
+.link { color: var(--accent); font-size: 12px; }
+.link:hover { text-decoration: underline; }
+.manual { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.manual input, .rename {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.manual .text-button { align-self: flex-start; }
+
+.tag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.tag-list li { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 8px; }
+.tag-list li:hover { background: var(--surface); }
+.tag-list .tag-open { flex: 1; display: flex; text-align: left; }
+.tag-list .rename { flex: 1; }
+.tag-list .count { color: var(--muted); font-size: 12px; min-width: 24px; text-align: right; font-variant-numeric: tabular-nums; }

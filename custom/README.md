@@ -41,6 +41,45 @@ load from upstream's own output:
 The root `manifest.json` is a stale development leftover upstream no longer updates; don't load the
 repo root as the extension.
 
+## Tags: the `panel` branch of the bookmarks repository
+
+Two GitHub repositories are involved, and it is easy to mix them up:
+
+| Repository                | What it holds                                                    |
+| ------------------------- | ---------------------------------------------------------------- |
+| `barruda/floccus`         | This code (the fork). Branch `custom` = our changes.             |
+| `barruda/floccus-personal`| The **data**: the synced bookmarks. Private.                     |
+
+The data repository has two branches, each written by a different program:
+
+```
+barruda/floccus-personal
+├── main    README.md, bookmarks.xbel   ← floccus writes it (the Git profile's branch)
+└── panel   README.md, tags.json        ← the side panel writes it
+```
+
+- **Why a separate branch:** floccus owns `main`. "Sync from scratch" or resetting the profile makes
+  floccus re-create `main` with a force push (`src/lib/adapters/Git.ts`, `init`), which would delete
+  any file of ours there. On `panel`, floccus never touches it. The branch has no history in common
+  with `main`; the panel creates it (as an orphan branch, with a README explaining it) on the first
+  tag.
+- **What tags.json holds:** tags per page URL (not per bookmark id, which differs between
+  browsers), each with an `updatedAt`. Syncing merges per URL and the newer entry wins; removed
+  tags stay as an empty entry (a tombstone) for 180 days so the removal reaches other browsers.
+  Format and merge: `custom/panel/src/tags/model.ts`.
+- **Who sees the tags:** only this side panel. Bookmark titles, the browser's bookmarks bar and the
+  floccus mobile app don't change and don't see them.
+- **Credentials:** the panel reads floccus's Git profile (repository URL and token) from floccus's
+  storage, read-only. If floccus's profiles are locked with a password, or to use another
+  repository, set one in the panel: **Tags** button → "Usar outro repositório ou token". The token
+  needs **Contents: Read and write** on the data repository (the same token floccus uses works).
+- **When it syncs:** when the panel opens or becomes visible, 1.5 s after each edit, and every
+  5 minutes while it is open. A local copy in the extension's storage keeps tags working offline.
+- **Known gap:** changing a bookmark's URL (outside the panel) leaves its tags on the old URL.
+  Tags of a deleted bookmark stay in tags.json and come back if the page is bookmarked again.
+- **Editing by hand:** fine on GitHub, on the `panel` branch; keep the format and raise the
+  `updatedAt` of the entries you change, or the next merge may prefer the browser's copy.
+
 ## Installing
 
 ```bash

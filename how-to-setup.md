@@ -54,6 +54,12 @@ Open floccus's settings (right-click the toolbar button → **Floccus sync setti
 
 Use the HTTPS URL, not `git@github.com:...`. Save, then press the sync button.
 
+## 6. Tags (side panel)
+
+The side panel's tags sync to the same repository, on a separate branch named `panel`
+(`tags.json`). Floccus keeps using `main`; the panel creates `panel` by itself on the first tag,
+using the Git profile's token. Nothing to set up. Details: "Tags" in `custom/README.md`.
+
 ## Troubleshooting
 
 - **HTTP Error: 401:** wrong username, an account password instead of a token, or a token that lacks access to the repo or **Contents: Read and write**.

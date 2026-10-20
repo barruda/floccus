@@ -3,6 +3,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import BookmarkItem from './BookmarkItem.vue'
 import FolderItem from './FolderItem.vue'
 import Icon from './Icon.vue'
+import TagChip from './TagChip.vue'
+import TagEditor from './TagEditor.vue'
+import TagManager from './TagManager.vue'
 import {
   BOOKMARKS_BAR_ID,
   ROOT_ID,
@@ -15,8 +18,12 @@ import {
   type BookmarkNode,
   type FolderEntry,
 } from './bookmarks'
+import { bookmarksWithTags, refreshLibrary, tagCounts } from './library'
 import { loadPages, savePage, toasts } from './pages'
+import { toggleTagFilter, ui } from './ui'
 import { offscreen } from '../shared/rpc'
+import { parseQuery } from '../tags/model'
+import { startTags, tagState } from '../tags/store'
 
 type Mode = 'grid' | 'list'
 
@@ -43,11 +50,11 @@ const folders = ref<FolderEntry[]>([])
 const bookmarks = ref<BookmarkNode[]>([])
 const loading = ref(true)
 
-const query = ref('')
 const searchBox = ref<HTMLInputElement>()
 const results = ref<BookmarkNode[]>([])
 const savedHits = ref<{ bookmark: BookmarkNode; snippet: string }[]>([])
-const searching = computed(() => query.value.trim().length > 0)
+const searching = computed(() => ui.query.trim().length > 0)
+const parsedQuery = computed(() => parseQuery(ui.query))
 
 watch(mode, (m) => store('mode', m))
 watch(folderId, (id) => store('folder', id))
@@ -65,34 +72,48 @@ async function loadFolder() {
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let searchRun = 0
 
+// "#receitas pão": bookmarks tagged #receitas whose title or URL has "pão", plus saved pages
+// with "pão" in their text (also tagged #receitas). Tags alone list every bookmark carrying them.
 async function runSearch() {
-  const q = query.value.trim()
+  const { tags, text } = parsedQuery.value
   const run = ++searchRun
   const [found, hits] = await Promise.all([
-    searchBookmarks(q),
-    offscreen({ op: 'archive.search', query: q }).catch(() => []),
+    text ? searchBookmarks(text) : Promise.resolve(undefined),
+    text ? offscreen({ op: 'archive.search', query: text }).catch(() => []) : Promise.resolve([]),
   ])
-  const hitBookmarks = await bookmarksForUrls(hits.map((h) => h.url))
+  const hitBookmarks = bookmarksWithTags(tags, await bookmarksForUrls(hits.map((h) => h.url)))
   if (run !== searchRun) return
-  results.value = found
+  results.value = tags.length || !found ? bookmarksWithTags(tags, found) : found
   savedHits.value = hitBookmarks.map((bookmark) => ({
     bookmark,
     snippet: hits.find((h) => h.url === bookmark.url)?.snippet ?? '',
   }))
-  loadPages([...found, ...hitBookmarks].map((b) => b.url!)).catch(console.warn)
+  loadPages([...results.value, ...hitBookmarks].map((b) => b.url!)).catch(console.warn)
 }
 
-watch(query, (q) => {
-  clearTimeout(searchTimer)
-  if (!q.trim()) {
-    loadFolder()
-    return
-  }
-  searchTimer = setTimeout(runSearch, 180)
-})
+watch(
+  () => ui.query,
+  (q) => {
+    clearTimeout(searchTimer)
+    if (!q.trim()) {
+      loadFolder()
+      return
+    }
+    searchTimer = setTimeout(runSearch, 180)
+  },
+)
+
+// Results follow tag edits made while a tag filter is showing.
+watch(
+  () => tagState.file,
+  () => {
+    if (searching.value && parsedQuery.value.tags.length) runSearch()
+  },
+)
 
 function openFolder(id: string) {
-  query.value = ''
+  ui.query = ''
+  ui.view = 'browse'
   folderId.value = id
 }
 watch(folderId, loadFolder)
@@ -111,17 +132,25 @@ async function saveAll() {
   }
 }
 
+// The tag strip: the tags in the current filter first, then the most used.
+const stripTags = computed(() => {
+  const active = parsedQuery.value.tags
+  const rest = tagCounts.value.filter((t) => !active.includes(t.tag))
+  return [...active.map((tag) => ({ tag, count: tagCounts.value.find((t) => t.tag === tag)?.count ?? 0 })), ...rest]
+})
+
 function openSettings() {
   chrome.tabs.create({ url: chrome.runtime.getURL('dist/html/options.html') })
 }
 
 function onKey(event: KeyboardEvent) {
+  if (ui.editing) return
   const typing = document.activeElement === searchBox.value
-  if (event.key === '/' && !typing) {
+  if (event.key === '/' && !typing && !(document.activeElement instanceof HTMLInputElement)) {
     event.preventDefault()
     searchBox.value?.focus()
   } else if (event.key === 'Escape' && typing) {
-    query.value = ''
+    ui.query = ''
     searchBox.value?.blur()
   }
 }
@@ -129,7 +158,13 @@ function onKey(event: KeyboardEvent) {
 let stopListening: (() => void) | undefined
 onMounted(() => {
   loadFolder()
-  stopListening = onBookmarksChanged(() => (searching.value ? runSearch() : loadFolder()))
+  refreshLibrary()
+  startTags().catch(console.warn)
+  stopListening = onBookmarksChanged(() => {
+    refreshLibrary()
+    if (searching.value) runSearch()
+    else loadFolder()
+  })
   window.addEventListener('keydown', onKey)
 })
 onUnmounted(() => {
@@ -157,6 +192,14 @@ onUnmounted(() => {
           <button :class="{ on: mode === 'grid' }" title="Grade" @click="mode = 'grid'"><Icon name="grid" /></button>
           <button :class="{ on: mode === 'list' }" title="Lista" @click="mode = 'list'"><Icon name="list" /></button>
         </div>
+        <button
+          class="icon-button"
+          :class="{ on: ui.view === 'tags' }"
+          :title="tagState.status === 'error' ? `Tags: ${tagState.error}` : 'Tags'"
+          @click="ui.view = ui.view === 'tags' ? 'browse' : 'tags'"
+        >
+          <Icon :name="tagState.status === 'error' ? 'alert' : 'tag'" />
+        </button>
         <button class="icon-button" title="Configurações de sincronização (floccus)" @click="openSettings">
           <Icon name="settings" />
         </button>
@@ -164,15 +207,36 @@ onUnmounted(() => {
     </div>
     <label class="search">
       <Icon name="search" />
-      <input ref="searchBox" v-model="query" type="search" placeholder="Buscar nos favoritos e páginas salvas  /" />
-      <button v-if="query" class="icon-button" title="Limpar" @click="query = ''"><Icon name="x" /></button>
+      <input
+        ref="searchBox"
+        v-model="ui.query"
+        type="search"
+        placeholder="Buscar nos favoritos, #tags e páginas salvas  /"
+        @focus="ui.view = 'browse'"
+      />
+      <button v-if="ui.query" class="icon-button" title="Limpar" @click="ui.query = ''"><Icon name="x" /></button>
     </label>
+    <div v-if="stripTags.length && ui.view === 'browse'" class="tag-strip">
+      <button
+        v-for="{ tag, count } in stripTags"
+        :key="tag"
+        class="tag-button"
+        :title="`Filtrar por #${tag}`"
+        @click="toggleTagFilter(tag)"
+      >
+        <TagChip :tag="tag" :count="count" :active="parsedQuery.tags.includes(tag)" />
+      </button>
+    </div>
   </header>
 
   <main>
-    <template v-if="searching">
+    <TagManager v-if="ui.view === 'tags'" />
+
+    <template v-else-if="searching">
       <section>
-        <h2>Favoritos <span class="count">{{ results.length }}</span></h2>
+        <h2>
+          {{ parsedQuery.text ? 'Favoritos' : 'Com as tags' }} <span class="count">{{ results.length }}</span>
+        </h2>
         <div :class="['items', mode]">
           <BookmarkItem v-for="b in results" :key="b.id" :bookmark="b" :mode="mode" />
         </div>
@@ -197,6 +261,7 @@ onUnmounted(() => {
     <template v-else-if="!loading">
       <div class="folder-head">
         <h1>{{ folderTitle }}</h1>
+        <span class="spacer" />
         <button v-if="bookmarks.length" class="text-button" :disabled="savingAll" @click="saveAll">
           <Icon :name="savingAll ? 'spinner' : 'save'" :size="14" />
           {{ savingAll ? 'Salvando…' : 'Salvar HTML de todos' }}
@@ -211,6 +276,8 @@ onUnmounted(() => {
       <p v-if="!folders.length && !bookmarks.length" class="empty">Pasta vazia.</p>
     </template>
   </main>
+
+  <TagEditor v-if="ui.editing" />
 
   <div class="toasts" aria-live="polite">
     <div v-for="t in toasts" :key="t.id" class="toast">{{ t.text }}</div>

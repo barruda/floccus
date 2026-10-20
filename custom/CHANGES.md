@@ -57,5 +57,38 @@ Find every patched spot in upstream code with `rg "CUSTOM\("`.
   with `importScripts('./<chunk>.js')` relative to the worker. If upstream starts using
   `chrome.sidePanel`, the toolbar button or `runtime.onMessage` in the service worker, check for
   clashes: our messages carry `channel: 'floccus-panel'`.
-- **Verify:** `custom/build.sh && node custom/smoke-test.mjs` (12 checks, headless Brave in a
+- **Verify:** `custom/build.sh && node custom/smoke-test.mjs` (headless Brave in a
   throwaway profile). The update script runs both.
+
+## panel-tags: tags per bookmark, synced on the `panel` branch
+
+- **Added:** 2026-10-20 (based on upstream 5.11.1, `1039cd98`)
+- **Commit:** `custom: tags in the side panel, synced to the panel branch on GitHub`
+- **Why:** Tags for bookmarks without putting them in the titles (which would clutter the
+  browser's bookmarks bar) and without depending on this browser's local database: they must
+  reach every browser of the user.
+- **What:**
+  - Tags show as colored chips on each bookmark; the tag button on a bookmark edits them (with
+    autocomplete). A strip under the search box lists all tags by use; clicking one writes `#tag`
+    into the search, which filters every folder (`#receitas pão` mixes tags and text, also over
+    saved pages' content).
+  - Tags screen (tag button in the header): rename, merge (rename onto an existing tag), delete,
+    sync status, and a manual repository/token setting.
+  - Storage: `tags.json` on the orphan branch `panel` of the bookmarks repository
+    (`barruda/floccus-personal`), never on floccus's `main` (floccus force-pushes it when syncing
+    from scratch). The branch gets a README explaining it. See "Tags" in `custom/README.md`.
+  - Sync through GitHub's REST API (`custom/panel/src/tags/github.ts`), merged per URL by
+    `updatedAt` with tombstones for removals (`model.ts`); local copy in `chrome.storage.local`
+    under `floccus-panel.tags`; credentials read from floccus's Git profile (`credentials.ts`),
+    or `floccus-panel.tagsRepo` when set in the panel.
+- **Files:** `custom/panel/src/tags/`, `custom/panel/src/panel/{library.ts,ui.ts,TagChip.vue,TagEditor.vue,TagManager.vue}`,
+  changes to `App.vue`, `BookmarkItem.vue`, `bookmarks.ts`, `Icon.vue`, `styles.css`; smoke test
+  with a fake GitHub API.
+- **Core files touched:** none. Reads floccus's `accounts` and `accountsLocked` entries from
+  `chrome.storage.local` (format of `src/lib/browser/BrowserAccountStorage.js`, Git profile fields
+  of `src/lib/adapters/Git.ts`).
+- **Re-apply:** If floccus changes how it stores profiles (key names, encryption), adapt
+  `loadConfig` in `custom/panel/src/tags/credentials.ts`; the manual setting keeps working
+  meanwhile.
+- **Verify:** `node custom/smoke-test.mjs` (tag checks: editor, push to a new `panel` branch with
+  README, merge of a remote edit, rename, filter).

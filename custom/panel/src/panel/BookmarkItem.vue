@@ -4,6 +4,10 @@ import Icon from './Icon.vue'
 import { faviconUrl, hostname, openUrl, type BookmarkNode } from './bookmarks'
 import { openSaved, pages, savePage, saving } from './pages'
 import { MATCH_END, MATCH_START } from '../shared/protocol'
+import TagChip from './TagChip.vue'
+import { parseQuery } from '../tags/model'
+import { tagsFor } from '../tags/store'
+import { toggleTagFilter, ui } from './ui'
 
 const props = defineProps<{ bookmark: BookmarkNode; mode: 'grid' | 'list'; snippet?: string }>()
 
@@ -42,6 +46,13 @@ const snippetParts = computed(() =>
     ]
   }),
 )
+
+const tags = computed(() => tagsFor(url.value))
+const activeTags = computed(() => parseQuery(ui.query).tags)
+
+function editTags() {
+  ui.editing = { url: url.value, title: title.value }
+}
 
 const savedLabel = computed(() => {
   const at = page.value?.archived_at
@@ -88,6 +99,11 @@ function open(event: MouseEvent) {
         <span class="host">{{ host }}</span>
         <span v-if="subtitle" class="subtitle"> · {{ subtitle }}</span>
       </div>
+      <div v-if="tags.length" class="tags" @click.stop.prevent @auxclick.stop.prevent>
+        <button v-for="tag in tags" :key="tag" class="tag-button" :title="`Filtrar por #${tag}`" @click="toggleTagFilter(tag)">
+          <TagChip :tag="tag" :active="activeTags.includes(tag)" />
+        </button>
+      </div>
       <div v-if="snippet" class="snippet">
         <template v-for="(part, i) in snippetParts" :key="i">
           <mark v-if="part.match">{{ part.text }}</mark>
@@ -97,6 +113,7 @@ function open(event: MouseEvent) {
     </div>
 
     <div class="actions" @click.stop.prevent @auxclick.stop.prevent>
+      <button class="icon-button" title="Tags" @click="editTags"><Icon name="tag" /></button>
       <button
         class="icon-button"
         :title="isSaved ? 'Salvar de novo' : 'Salvar HTML'"

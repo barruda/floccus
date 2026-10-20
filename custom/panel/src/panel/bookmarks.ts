@@ -47,6 +47,19 @@ export async function searchBookmarks(query: string): Promise<BookmarkNode[]> {
   return results.filter((r) => r.url).slice(0, 200)
 }
 
+// Every bookmark (not folder) in the browser, in tree order.
+export async function allBookmarks(): Promise<BookmarkNode[]> {
+  const out: BookmarkNode[] = []
+  const walk = (nodes: BookmarkNode[]) => {
+    for (const node of nodes) {
+      if (node.url) out.push(node)
+      if (node.children) walk(node.children)
+    }
+  }
+  walk(await chrome.bookmarks.getTree())
+  return out
+}
+
 export async function bookmarksForUrls(urls: string[]): Promise<BookmarkNode[]> {
   const found = await Promise.all(urls.map((url) => chrome.bookmarks.search({ url }).catch(() => [])))
   return found.map((list) => list[0]).filter((b): b is BookmarkNode => !!b)
