@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cópia salva</title>
+  </head>
+  <body>
+    <header class="bar">
+      <span class="label">Cópia salva</span>
+      <span class="when" id="when"></span>
+      <a class="original" id="original" target="_blank" rel="noreferrer">Abrir original</a>
+    </header>
+    <p class="empty" id="empty" hidden>Nenhuma cópia salva desta página.</p>
+    <iframe id="frame" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>
+    <script type="module" src="./viewer/main.ts"></script>
+  </body>
+</html>
