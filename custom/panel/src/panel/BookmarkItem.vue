@@ -8,6 +8,8 @@ import TagChip from './TagChip.vue'
 import { parseQuery } from '../tags/model'
 import { tagsFor } from '../tags/store'
 import { toggleTagFilter, ui } from './ui'
+import { selectRange, selection, toggleSelected } from './selection'
+import { removeBookmarks, removing } from './trash'
 
 const props = defineProps<{ bookmark: BookmarkNode; mode: 'grid' | 'list'; snippet?: string }>()
 
@@ -59,21 +61,41 @@ const savedLabel = computed(() => {
   return at ? `Salvo em ${new Date(at).toLocaleDateString('pt-BR')}` : ''
 })
 
-function open(event: MouseEvent) {
+const selected = computed(() => selection.ids.has(props.bookmark.id))
+
+// Click opens in a new tab. Ctrl/Cmd+click and Shift+click select instead, and once anything
+// is selected a plain click keeps selecting.
+function onClick(event: MouseEvent) {
   event.preventDefault()
-  openUrl(url.value, event.button === 1 || event.ctrlKey || event.metaKey)
+  if (event.shiftKey) selectRange(props.bookmark.id)
+  else if (event.ctrlKey || event.metaKey || selection.ids.size) toggleSelected(props.bookmark.id)
+  else openUrl(url.value, true)
+}
+
+// Middle click: new tab in the background. Other buttons (the context menu) are left alone.
+function onAuxClick(event: MouseEvent) {
+  if (event.button !== 1) return
+  event.preventDefault()
+  openUrl(url.value, false)
 }
 </script>
 
 <template>
   <a
-    :class="['item', mode]"
+    :class="['item', mode, { selected, selecting: selection.ids.size > 0, removing: removing.has(bookmark.id) }]"
     :href="url"
     :title="`${title}\n${url}`"
-    @click="open"
-    @auxclick="open"
+    @click="onClick"
+    @auxclick="onAuxClick"
   >
     <div class="preview" :style="{ '--hue': hue }">
+      <button
+        class="select"
+        :title="selected ? 'Desmarcar' : 'Selecionar'"
+        @click.stop.prevent="$event.shiftKey ? selectRange(bookmark.id) : toggleSelected(bookmark.id)"
+      >
+        <Icon name="check" :size="12" />
+      </button>
       <img
         v-if="preview"
         class="shot"
@@ -125,8 +147,8 @@ function open(event: MouseEvent) {
       <button v-if="isSaved" class="icon-button" title="Ver cópia salva" @click="openSaved(url)">
         <Icon name="saved" />
       </button>
-      <button class="icon-button" title="Abrir em nova aba" @click="openUrl(url, true)">
-        <Icon name="external" />
+      <button class="icon-button danger" title="Apagar (Ctrl+Z desfaz)" @click="removeBookmarks([bookmark])">
+        <Icon name="trash" />
       </button>
     </div>
   </a>

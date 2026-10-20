@@ -10,16 +10,26 @@ const CONCURRENCY = 3
 
 export const pages = reactive(new Map<string, PageRow>())
 export const saving = reactive(new Set<string>())
-export const toasts = reactive<{ id: number; text: string }[]>([])
+export interface Toast {
+  id: number
+  text: string
+  action?: { label: string; run: () => void }
+}
+
+export const toasts = reactive<Toast[]>([])
 
 let toastId = 0
-export function toast(text: string) {
+export function dismissToast(id: number) {
+  const i = toasts.findIndex((t) => t.id === id)
+  if (i >= 0) toasts.splice(i, 1)
+}
+
+// A toast with an action (Desfazer) stays longer, to give time to reach the button.
+export function toast(text: string, action?: Toast['action']) {
   const id = ++toastId
-  toasts.push({ id, text })
-  setTimeout(() => {
-    const i = toasts.findIndex((t) => t.id === id)
-    if (i >= 0) toasts.splice(i, 1)
-  }, 4000)
+  toasts.push({ id, text, action })
+  setTimeout(() => dismissToast(id), action ? 8000 : 4000)
+  return id
 }
 
 async function refresh(urls: string[]) {

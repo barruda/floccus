@@ -19,8 +19,10 @@ import {
   type FolderEntry,
 } from './bookmarks'
 import { bookmarksWithTags, refreshLibrary, tagCounts } from './library'
-import { loadPages, savePage, toasts } from './pages'
-import { toggleTagFilter, ui } from './ui'
+import { dismissToast, loadPages, savePage, toasts } from './pages'
+import { clearSelection, selectAll, selectedNodes, selection, setVisible } from './selection'
+import { removeBookmarks, undo } from './trash'
+import { SIZE_DEFAULT, toggleTagFilter, ui } from './ui'
 import { offscreen } from '../shared/rpc'
 import { parseQuery } from '../tags/model'
 import { startTags, tagState } from '../tags/store'
@@ -56,8 +58,20 @@ const savedHits = ref<{ bookmark: BookmarkNode; snippet: string }[]>([])
 const searching = computed(() => ui.query.trim().length > 0)
 const parsedQuery = computed(() => parseQuery(ui.query))
 
+ui.size = Number(remember('size', String(SIZE_DEFAULT))) || SIZE_DEFAULT
+
 watch(mode, (m) => store('mode', m))
 watch(folderId, (id) => store('folder', id))
+watch(
+  () => ui.size,
+  (size) => store('size', String(size)),
+)
+
+// One slider sizes both views: card width in the grid, thumbnail width in the list.
+const sizeVars = computed(() => ({
+  '--card-min': `${Math.round(120 + ui.size * 2.2)}px`,
+  '--thumb': `${Math.round(48 + ui.size * 1.2)}px`,
+}))
 
 async function loadFolder() {
   if (!(await folderExists(folderId.value))) folderId.value = BOOKMARKS_BAR_ID
@@ -111,6 +125,20 @@ watch(
   },
 )
 
+// What is on screen, in order: the range for Shift+click and Ctrl+A.
+setVisible(() => (searching.value ? [...results.value, ...savedHits.value.map((h) => h.bookmark)] : bookmarks.value))
+watch([() => ui.query, folderId, () => ui.view], clearSelection)
+
+const confirmingDelete = ref(false)
+watch(() => selection.ids.size, (n) => n || (confirmingDelete.value = false))
+
+async function deleteSelected() {
+  const nodes = selectedNodes()
+  confirmingDelete.value = false
+  clearSelection()
+  await removeBookmarks(nodes)
+}
+
 function openFolder(id: string) {
   ui.query = ''
   ui.view = 'browse'
@@ -146,12 +174,25 @@ function openSettings() {
 function onKey(event: KeyboardEvent) {
   if (ui.editing) return
   const typing = document.activeElement === searchBox.value
-  if (event.key === '/' && !typing && !(document.activeElement instanceof HTMLInputElement)) {
+  const inInput = document.activeElement instanceof HTMLInputElement
+  const mod = event.ctrlKey || event.metaKey
+  if (event.key === '/' && !inInput) {
     event.preventDefault()
     searchBox.value?.focus()
   } else if (event.key === 'Escape' && typing) {
     ui.query = ''
     searchBox.value?.blur()
+  } else if (event.key === 'Escape' && selection.ids.size) {
+    clearSelection()
+  } else if (mod && event.key.toLowerCase() === 'z' && !event.shiftKey && !inInput) {
+    event.preventDefault()
+    undo()
+  } else if (mod && event.key.toLowerCase() === 'a' && !inInput && ui.view === 'browse') {
+    event.preventDefault()
+    selectAll()
+  } else if ((event.key === 'Delete' || event.key === 'Backspace') && selection.ids.size && !inInput) {
+    event.preventDefault()
+    confirmingDelete.value = true
   }
 }
 
@@ -216,20 +257,27 @@ onUnmounted(() => {
       />
       <button v-if="ui.query" class="icon-button" title="Limpar" @click="ui.query = ''"><Icon name="x" /></button>
     </label>
-    <div v-if="stripTags.length && ui.view === 'browse'" class="tag-strip">
-      <button
-        v-for="{ tag, count } in stripTags"
-        :key="tag"
-        class="tag-button"
-        :title="`Filtrar por #${tag}`"
-        @click="toggleTagFilter(tag)"
-      >
-        <TagChip :tag="tag" :count="count" :active="parsedQuery.tags.includes(tag)" />
-      </button>
+    <div v-if="ui.view === 'browse'" class="subbar">
+      <div class="tag-strip">
+        <button
+          v-for="{ tag, count } in stripTags"
+          :key="tag"
+          class="tag-button"
+          :title="`Filtrar por #${tag}`"
+          @click="toggleTagFilter(tag)"
+        >
+          <TagChip :tag="tag" :count="count" :active="parsedQuery.tags.includes(tag)" />
+        </button>
+      </div>
+      <label class="size" title="Tamanho das imagens">
+        <Icon name="image" :size="12" />
+        <input v-model.number="ui.size" type="range" min="0" max="100" step="1" aria-label="Tamanho das imagens" />
+        <Icon name="image" :size="16" />
+      </label>
     </div>
   </header>
 
-  <main>
+  <main :style="sizeVars">
     <TagManager v-if="ui.view === 'tags'" />
 
     <template v-else-if="searching">
@@ -279,7 +327,39 @@ onUnmounted(() => {
 
   <TagEditor v-if="ui.editing" />
 
-  <div class="toasts" aria-live="polite">
-    <div v-for="t in toasts" :key="t.id" class="toast">{{ t.text }}</div>
+  <Transition name="bar">
+    <div v-if="selection.ids.size" class="selection-bar" :class="{ danger: confirmingDelete }">
+      <template v-if="!confirmingDelete">
+        <span class="selection-count">{{ selection.ids.size }} selecionado{{ selection.ids.size === 1 ? '' : 's' }}</span>
+        <button class="bar-button" title="Ctrl+A" @click="selectAll">Todos</button>
+        <button class="bar-button danger" title="Delete" @click="confirmingDelete = true">
+          <Icon name="trash" :size="14" /> Apagar
+        </button>
+        <button class="icon-button" title="Cancelar seleção (Esc)" @click="clearSelection"><Icon name="x" /></button>
+      </template>
+      <template v-else>
+        <span class="selection-count">
+          Apagar {{ selection.ids.size }} favorito{{ selection.ids.size === 1 ? '' : 's' }}?
+        </span>
+        <button class="bar-button" @click="confirmingDelete = false">Cancelar</button>
+        <button class="bar-button solid-danger" @click="deleteSelected"><Icon name="trash" :size="14" /> Apagar</button>
+      </template>
+    </div>
+  </Transition>
+
+  <div class="toasts" :class="{ raised: selection.ids.size }" aria-live="polite">
+    <div v-for="t in toasts" :key="t.id" class="toast">
+      <span>{{ t.text }}</span>
+      <button
+        v-if="t.action"
+        class="toast-action"
+        @click="
+          t.action.run();
+          dismissToast(t.id)
+        "
+      >
+        {{ t.action.label }}
+      </button>
+    </div>
   </div>
 </template>

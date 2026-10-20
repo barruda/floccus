@@ -3,8 +3,12 @@
 import { reactive } from 'vue'
 import { toggleTagInQuery } from '../tags/model'
 
+// Preview size, 0 (small) to 100 (large), from the slider under the search box.
+export const SIZE_DEFAULT = 30
+
 export const ui = reactive({
   query: '',
+  size: SIZE_DEFAULT,
   view: 'browse' as 'browse' | 'tags',
   editing: null as { url: string; title: string } | null,
 })

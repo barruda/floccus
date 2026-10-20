@@ -92,3 +92,29 @@ Find every patched spot in upstream code with `rg "CUSTOM\("`.
   meanwhile.
 - **Verify:** `node custom/smoke-test.mjs` (tag checks: editor, push to a new `panel` branch with
   README, merge of a remote edit, rename, filter).
+
+## panel-manage: size slider, selection, delete with undo
+
+- **Added:** 2026-10-20 (based on upstream 5.11.1, `1039cd98`)
+- **Commit:** `custom: panel size slider, selection and delete with undo`
+- **Why:** Tidying bookmarks from the panel instead of the browser's manager.
+- **What:**
+  - A slider next to the tag strip sets the preview size in both views (grid card width
+    120–340 px, list thumbnail width 48–168 px); remembered per browser.
+  - Clicking a bookmark opens it in a new tab (middle click: in the background). The "open in
+    new tab" button is gone.
+  - Selection: the round checkbox on a preview or Ctrl/Cmd+click toggles a bookmark, Shift+click
+    selects a range, Ctrl+A selects everything on screen, Esc clears; while anything is selected,
+    a plain click selects too. A bar at the bottom deletes the selection after a confirmation
+    (also Delete/Backspace).
+  - The trash button on hover deletes one bookmark at once, without confirming. Every deletion
+    fades the item out and shows a toast with "Desfazer"; Ctrl+Z undoes the latest one (up to 20).
+    Undo re-creates the bookmarks in their folder and position (new ids; tags, previews and saved
+    pages follow by URL). Folders can't be selected or deleted from the panel.
+- **Files:** `custom/panel/src/panel/{selection.ts,trash.ts}`, changes to `App.vue`,
+  `BookmarkItem.vue`, `bookmarks.ts`, `pages.ts` (toasts with an action), `ui.ts`, `Icon.vue`,
+  `styles.css`.
+- **Core files touched:** none.
+- **Re-apply:** Nothing upstream to follow.
+- **Verify:** `node custom/smoke-test.mjs` (slider, trash + Ctrl+Z with tags kept, Ctrl+click,
+  confirmation, bulk delete and Desfazer).

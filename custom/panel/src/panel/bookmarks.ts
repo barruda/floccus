@@ -65,14 +65,9 @@ export async function bookmarksForUrls(urls: string[]): Promise<BookmarkNode[]> 
   return found.map((list) => list[0]).filter((b): b is BookmarkNode => !!b)
 }
 
-export async function openUrl(url: string, newTab: boolean) {
-  if (newTab) {
-    await chrome.tabs.create({ url, active: false })
-    return
-  }
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (tab?.id !== undefined) await chrome.tabs.update(tab.id, { url })
-  else await chrome.tabs.create({ url })
+// Bookmarks open in a new tab; `active: false` (middle click) leaves it in the background.
+export async function openUrl(url: string, active: boolean) {
+  await chrome.tabs.create({ url, active })
 }
 
 export function faviconUrl(pageUrl: string, size = 32): string {

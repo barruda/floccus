@@ -390,6 +390,64 @@ try {
   )
   await panel.evaluate(`document.querySelectorAll('.segmented button')[0].click()`)
   await screenshot(panel, 'tag-filter', 420, 760)
+
+  // Back to the bookmarks bar for the size slider, delete with undo, and selection.
+  await panel.evaluate(`(() => {
+    const input = document.querySelector('.search input')
+    input.value = ''
+    input.dispatchEvent(new Event('input'))
+  })()`)
+  await until(() => panel.evaluate(`document.querySelectorAll('.folder').length >= 2`), 'root folders')
+  await panel.evaluate(`document.querySelector('.folder').click()`)
+  const itemCount = (n) => panel.evaluate(`document.querySelectorAll('.items .item').length === ${n}`)
+  check(await until(() => itemCount(2), 'bookmarks bar'), 'back in the bookmarks bar')
+
+  await panel.evaluate(`(() => {
+    const slider = document.querySelector('.size input')
+    slider.value = '100'
+    slider.dispatchEvent(new Event('input'))
+  })()`)
+  check(
+    await until(() => panel.evaluate(`getComputedStyle(document.querySelector('main')).getPropertyValue('--card-min').trim() === '340px'`), 'slider'),
+    'the size slider resizes the previews',
+  )
+  await screenshot(panel, 'size-large', 420, 760)
+  await panel.evaluate(`(() => {
+    const slider = document.querySelector('.size input')
+    slider.value = '20'
+    slider.dispatchEvent(new Event('input'))
+  })()`)
+
+  await panel.evaluate(`document.querySelector('.item[href$="/one"] .actions button[title^="Apagar"]').click()`)
+  check(
+    await until(
+      () => panel.evaluate(`document.querySelectorAll('.items .item').length === 1 && [...document.querySelectorAll('.toast')].some(t => t.textContent.includes('Desfazer'))`),
+      'deleted',
+    ),
+    'the trash button deletes at once and offers Desfazer',
+  )
+  await panel.evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))`)
+  check(
+    await until(() => panel.evaluate(`!!document.querySelector('.item[href$="/one"] .tags')?.textContent.includes('viagem')`), 'undo'),
+    'Ctrl+Z brings the bookmark back, with its tags',
+  )
+
+  await panel.evaluate(`document.querySelector('.items .item').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }))`)
+  check(
+    await until(() => panel.evaluate(`document.querySelector('.selection-count')?.textContent.trim() === '1 selecionado'`), 'selection'),
+    'Ctrl+click selects a bookmark',
+  )
+  await panel.evaluate(`[...document.querySelectorAll('.selection-bar button')].find(b => b.textContent.includes('Todos')).click()`)
+  await panel.evaluate(`document.querySelector('.selection-bar .bar-button.danger').click()`)
+  check(
+    await until(() => panel.evaluate(`document.querySelector('.selection-count')?.textContent.includes('Apagar 2 favoritos?')`), 'confirm'),
+    'deleting a selection asks for confirmation',
+  )
+  await screenshot(panel, 'selection-confirm', 420, 760)
+  await panel.evaluate(`document.querySelector('.selection-bar .solid-danger').click()`)
+  check(await until(() => itemCount(0), 'bulk delete'), 'confirmed: the selected bookmarks are deleted')
+  await panel.evaluate(`[...document.querySelectorAll('.toast-action')].at(-1).click()`)
+  check(await until(() => itemCount(2), 'bulk undo'), 'Desfazer restores all of them')
 } catch (err) {
   console.error(err)
   failures++
